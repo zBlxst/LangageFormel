@@ -2,6 +2,7 @@
 %option yylineno
 
 %x COMMENT
+%x COMMENT2
 
 DIG	[0-9]
 
@@ -17,6 +18,7 @@ DIG	[0-9]
 "skip"  { return SKIP; }
 
 "//" { BEGIN(COMMENT); }
+"/*" { BEGIN(COMMENT2); }
 
 "do"	{ return DO; }
 "od"	{ return OD; }
@@ -47,6 +49,9 @@ DIG	[0-9]
 
 <COMMENT>. { }
 <COMMENT>\n { BEGIN(INITIAL); }
+<COMMENT2>. { }
+<COMMENT2>\n { }
+<COMMENT2>"*/" { BEGIN(INITIAL); }
 
 {DIG}+	{ yylval.n = atoi(yytext); return INT; }
 
