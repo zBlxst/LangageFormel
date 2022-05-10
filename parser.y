@@ -502,7 +502,20 @@ void print_prgm (prgm *p)
 
 int main (int argc, char **argv)
 {
-	if (argc <= 1) { yyerror("no file specified"); exit(1); }
-	yyin = fopen(argv[1],"r");
-	if (!yyparse()) print_prgm(program);
+	if (argc <= 2) { 
+		fprintf(stderr, "usage : %s [print/reach] [file]\n", argv[0]); 
+		exit(1); 
+	}
+	yyin = fopen(argv[2],"r");
+
+	if (strcmp(argv[1], "print") == 0) {
+		if (!yyparse()) print_prgm(program);
+	}
+	else if (strcmp(argv[1], "reach") == 0) {
+		printf("fhioez\n");
+	}
+	else {
+		fprintf(stderr, "Unknown command\n");
+	}
+
 }
