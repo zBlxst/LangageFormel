@@ -1,0 +1,38 @@
+// rfytuoipk
+
+var lock,fin;
+
+proc p
+	var todo;
+
+	lock := 2;	// lock non acquis
+	todo := 1;
+
+	do
+	:: todo == 0 -> break
+	:: else ->
+		todo := 0;
+
+		// obtenir le lock
+		lock := lock+1;
+
+		if	// decision non deterministe
+		:: 1 -> skip
+		:: 1 ->
+			// relacher le lock
+			lock := lock-1;
+			todo := 1
+		fi
+	od;
+
+	// relacher le lock
+	lock := lock-1;
+	fin := 1
+end
+
+reach lock == 1		// non accessible deux relachements de suite
+reach lock == 2		// accessible lock relache
+reach lock == 3		// accessible lock obtenu
+reach lock == 4		// non accessible deux obtentions de suite
+reach fin && !(lock == 2)	// non accessible lock non relache a la fin
+reach fin		// accessible
