@@ -277,8 +277,9 @@ prgm* make_prgm (varlist *glob, proclist *core, spelist *spe)
 %left ';'
 %left ','
 
-%left OR AND PLUS MINUS TIME
-%right NOT DIV
+%left OR AND PLUS MINUS
+%left TIME DIV
+%right NOT
 
 %%
 
