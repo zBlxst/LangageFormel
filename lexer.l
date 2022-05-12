@@ -8,58 +8,58 @@ DIG	[0-9]
 
 %%
 
-"var"	{ return VAR; }
+"var"	            { return VAR; }
 
-"proc"	{ return PROC; }
-"end"	{ return END; }
+"proc"	            { return PROC; }
+"end"	            { return END; }
 
-"reach" { return REACH; }
-"break" { return BREAK; }
-"skip"  { return SKIP; }
+"reach"             { return REACH; }
+"break"             { return BREAK; }
+"skip"              { return SKIP; }
 
-"//" { BEGIN(COMMENT); }
-"/*" { BEGIN(COMMENT2); }
+"//"                { BEGIN(COMMENT); }
+"/*"                { BEGIN(COMMENT2); }
 
-"do"	{ return DO; }
-"od"	{ return OD; }
+"do"	            { return DO; }
+"od"	            { return OD; }
 
-"if"	{ return IF; }
-"fi"	{ return FI; }
+"if"	            { return IF; }
+"fi"	            { return FI; }
 
-"::"	{ return CASE; }
-"else"	{ return ELSE; }
-"->"	{ return THEN; }
+"::"	            { return CASE; }
+"else"	            { return ELSE; }
+"->"	            { return THEN; }
 
-":="	{ return ASSIGN; }
+":="	            { return ASSIGN; }
 
-"=="	{ return EQ; }
-"||"	{ return OR; }
-"&&"	{ return AND; }
-"!"	{ return NOT; }
+"=="	            { return EQ; }
+"||"	            { return OR; }
+"&&"	            { return AND; }
+"!"	                { return NOT; }
 
-"+"	{ return PLUS; }
-"*"	{ return TIME; }
-"-"	{ return MINUS; }
-"/"	{ return DIV; }
+"+"	                { return PLUS; }
+"*"	                { return TIME; }
+"-"	                { return MINUS; }
+"/"	                { return DIV; }
 
-"<"	{ return LT; }
-"<="	{ return LE; }
-">"	{ return GT; }
-">="	{ return GE; }
+"<"	                { return LT; }
+"<="	            { return LE; }
+">"	                { return GT; }
+">="	            { return GE; }
 
-<COMMENT>. { }
-<COMMENT>\n { BEGIN(INITIAL); }
-<COMMENT2>. { }
-<COMMENT2>\n { }
-<COMMENT2>"*/" { BEGIN(INITIAL); }
+<COMMENT>.          { }
+<COMMENT>\n         { BEGIN(INITIAL); }
+<COMMENT2>.         { }
+<COMMENT2>\n        { }
+<COMMENT2>"*/"      { BEGIN(INITIAL); }
 
-{DIG}+	{ yylval.n = atoi(yytext); return INT; }
+{DIG}+	            { yylval.n = atoi(yytext); return INT; }
 
-[a-z_][a-z0-9_]* { yylval.s = strdup(yytext); return IDENT; }
+[a-z_][a-z0-9_]*    { yylval.s = strdup(yytext); return IDENT; }
 
-[	 \n]   { /* ignore */ }
+[	 \n]            { /* ignore */ }
 
-.	{ return *yytext; }
+.	                { return *yytext; }
 
 %%
 

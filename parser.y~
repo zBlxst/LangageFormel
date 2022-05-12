@@ -239,7 +239,7 @@ prgm* make_prgm (varlist *glob, proclist *core, spelist *spe)
 /****************************************************************************/
 
 /* types used by terminals and non-terminals */
-%define parse.error verbose
+%error-verbose
 
 %union {
 	char *s;
