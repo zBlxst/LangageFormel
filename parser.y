@@ -67,6 +67,7 @@ typedef struct cmd // une commande peut avoir plusieurs formes donc certains cha
 	char *name;
 	struct aexpr *val;
 	struct caselist *cases;
+	int toDoNext; // acts like a boolean
 } cmd;
 
 typedef struct cmdlist
@@ -189,6 +190,7 @@ cmd* make_cmd (int type, char *name, aexpr *val, caselist *cl)
 	c->name = name;
 	c->val = val;
 	c->cases = cl;
+	c->toDoNext = 0;
 	return c;
 }
 
@@ -497,6 +499,11 @@ void print_prgm (prgm *p)
 		print_spelist(p->spe);
 	}
 }
+
+/****************************************************************************/
+/* functions to run the program and try to solve reaches */
+
+
 
 /****************************************************************************/
 
