@@ -67,7 +67,6 @@ typedef struct cmd // une commande peut avoir plusieurs formes donc certains cha
 	char *name;
 	struct aexpr *val;
 	struct caselist *cases;
-	int toDoNext; // acts like a boolean
 } cmd;
 
 typedef struct cmdlist
@@ -190,7 +189,6 @@ cmd* make_cmd (int type, char *name, aexpr *val, caselist *cl)
 	c->name = name;
 	c->val = val;
 	c->cases = cl;
-	c->toDoNext = 0;
 	return c;
 }
 
@@ -241,7 +239,7 @@ prgm* make_prgm (varlist *glob, proclist *core, spelist *spe)
 /****************************************************************************/
 
 /* types used by terminals and non-terminals */
-%define parse.error verbose
+%error-verbose
 
 %union {
 	char *s;
@@ -500,11 +498,6 @@ void print_prgm (prgm *p)
 		print_spelist(p->spe);
 	}
 }
-
-/****************************************************************************/
-/* functions to run the program and try to solve reaches */
-
-
 
 /****************************************************************************/
 
