@@ -131,10 +131,18 @@ varlist* make_varlist (var *v, varlist *next)
 varlist* concat_varlist (varlist *l1, varlist *l2)
 {
 	varlist *vl;
-	vl = l1->next;
-	while (vl != NULL) vl = vl->next;
-	vl = l2;
-	return l1;
+	vl = l1;
+	if (vl == NULL) {
+		return l2;
+	}
+	else {
+		while (vl->next != NULL) {
+			vl = vl->next;
+		}
+		vl->next = l2;
+		return l1;
+	}
+	
 }
 
 compare* make_compare (int type, aexpr *left, aexpr *right)
