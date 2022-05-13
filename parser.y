@@ -347,6 +347,20 @@ spelist : { $$ = NULL; }
 #include "lexer.c"
 #include <time.h>
 
+#define AMOUNT_OF_TESTS 1000
+#define DEPTH_OF_TESTS 1000
+
+#define VAR_NOT_CHANGED 1
+#define VAR_NOT_FOUND -1	
+#define SMALLEST_NOT_FOUND 1
+
+#define FOUND_BUT_NOT_SET 1
+#define NOT_FOUND_NOT_SET 2
+
+#define NO_CASE_IN_DO 1
+
+#define EXECUTION_OVER 1
+
 void yyerror(char *s)
 {
 	fflush(stdout);
@@ -574,7 +588,7 @@ int change_var(varlist *varl, char *name, int value) {
 		} 
 		return change_var(varl->next, name, value);
 	}
-	return 1;
+	return VAR_NOT_CHANGED;
 }
 
 int get_value(varlist *varl, char *name, int *found) {
@@ -585,7 +599,7 @@ int get_value(varlist *varl, char *name, int *found) {
 		} 
 		return get_value(varl->next, name, found);
 	}
-	return -1;
+	return VAR_NOT_FOUND;
 }
 
 int compute_a(prgm *pm, proc *p, aexpr *expr) {
@@ -737,7 +751,7 @@ int exit_control_struct(proc *p, cmdlist *cmdl) {
 		smallest->toDoNext = 1;
 		return 0;
 	}
-	return 1;
+	return SMALLEST_NOT_FOUND;
 }
 
 int set_next_cmdlist(proc *p, cmdlist *cmdl, int found) {
@@ -757,10 +771,10 @@ int set_next_cmdlist(proc *p, cmdlist *cmdl, int found) {
 					switch (res) {
 						case 0:
 							return 0;
-						case -1:
+						case FOUND_BUT_NOT_SET:
 							cmdl->cmd->toDoNext = 1;
 							return 0;
-						case -2:
+						case NOT_FOUND_NOT_SET:
 							return set_next_cmdlist(p, cmdl->next, found);
 					}
 				}
@@ -768,9 +782,9 @@ int set_next_cmdlist(proc *p, cmdlist *cmdl, int found) {
 				switch (set_next_caselist(p, cmdl->cmd->cases, found)) {
 					case 0:
 						return 0;
-					case -1:
+					case FOUND_BUT_NOT_SET:
 						return set_next_cmdlist(p, cmdl->next, 1);
-					case -2:
+					case NOT_FOUND_NOT_SET:
 						return set_next_cmdlist(p, cmdl->next, 0);
 
 				}
@@ -780,7 +794,10 @@ int set_next_cmdlist(proc *p, cmdlist *cmdl, int found) {
 
 		}
 	}
-	return -2 + found; // -1 if found else -2  
+	if (found) {
+		return FOUND_BUT_NOT_SET;
+	}
+	return NOT_FOUND_NOT_SET;
 }
 
 int set_next_caselist(proc *p, caselist *casel, int found) {
@@ -791,13 +808,16 @@ int set_next_caselist(proc *p, caselist *casel, int found) {
 		switch (set_next_cmdlist(p, casel->qase->effet, found)) {
 			case 0:
 				return 0;
-			case -1:
-				return -1;
-			case -2:
+			case FOUND_BUT_NOT_SET:
+				return FOUND_BUT_NOT_SET;
+			case NOT_FOUND_NOT_SET:
 				return set_next_caselist(p, casel->next, found);
 		}
 	}
-	return -2 + found; // -1 if found else -2  
+	if (found) {
+		return FOUND_BUT_NOT_SET;
+	}
+	return NOT_FOUND_NOT_SET; 
 }
 
 
@@ -826,7 +846,7 @@ int execute(prgm *pm, proc *p, cmd *command) {
 				{
 					qase *qas = choose_case(pm, p, command->cases, -1);
 					if (qas == NULL) {
-						return 0;
+						return NO_CASE_IN_DO;
 					}
 					command->toDoNext = 0;
 					qas->effet->cmd->toDoNext = 1;
@@ -852,15 +872,17 @@ int one_step_in_proc(prgm *pm, proc *p) {
 		if (toDo == NULL) {
 			return 1;
 		}
-		if (execute(pm, p, toDo)) {
+		int exec_ret = execute(pm, p, toDo);
+		if (exec_ret == NO_CASE_IN_DO) {
+			return 0;
+		}
+		if (exec_ret) {
 			fprintf(stderr, "Something went wrong : execution aborted\n");
 			exit(1);
 		}
 		int set = set_next_cmdlist(p, p->core, 0);
 		if (set) {
 			p->alive = 0;
-			fprintf(stderr, "Something went wrong : execution aborted (over ?)\n");
-			/* exit(0); */
 		}
 		return 0;
 	}
@@ -873,7 +895,7 @@ int one_step_overall(prgm *pm, proclist *pl, int i) {
 			count += pl->p->alive;
 		}
 		if (count == 0) {
-			return -1;
+			return EXECUTION_OVER;
 		}
 		return one_step_overall(pm, pl, rand() % count);
 	}
@@ -929,9 +951,9 @@ void print_reaches(spelist *spl) {
 
 int myRun(prgm *pm) {
 	reset_program(pm);
-	for (int i = 0; i < 100; i++) {
+	for (int i = 0; i < AMOUNT_OF_TESTS; i++) {
 		reset_program(pm);
-		for (int i = 0; i < 100 && !one_step_overall(pm, pm->core, -1); i++) {
+		for (int i = 0; i < DEPTH_OF_TESTS && !one_step_overall(pm, pm->core, -1); i++) {
 			check_reach(pm, pm->spe);	
 		}
 	}
