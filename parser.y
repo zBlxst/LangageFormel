@@ -47,6 +47,7 @@ typedef struct bexpr // expression de type booléen
 	struct bexpr *left;
 	struct bexpr *right;
 	struct compare *cmp;
+	int count_reach;
 } bexpr;
 
 typedef struct qase // un case est composé d'une condition et d'un effet sous la forme d'une suite de commande
@@ -153,6 +154,7 @@ bexpr* make_bexpr (int type, aexpr *a, bexpr *left, bexpr *right, compare *c)
 	b->left = left;
 	b->right = right;
 	b->cmp = c;
+	b->count_reach = 0;
 	return b;
 }
 
@@ -343,6 +345,7 @@ spelist : { $$ = NULL; }
 %%
 
 #include "lexer.c"
+#include <time.h>
 
 void yyerror(char *s)
 {
@@ -592,9 +595,12 @@ int compute_a(prgm *pm, proc *p, aexpr *expr) {
 			int *pfound, found;
 			pfound = &found;
 			found = 0;
-			int res = get_value(p->loc, expr->name, pfound);
-			if (found) {
-				return res;
+			int res;
+			if (p != NULL) {
+				res = get_value(p->loc, expr->name, pfound);
+				if (found) {
+					return res;
+				}
 			}
 			res = get_value(pm->glob, expr->name, pfound);
 			if (found) {
@@ -682,9 +688,7 @@ qase* choose_case(prgm *pm, proc *p, caselist *casel, int i) {
 			}
 			return NULL;
 		}
-		int r = rand() % count;
-		//printf("Choosing the %d'th possible case (over %d possibilities)\n", r, count);
-		return choose_case(pm, p, casel, rand() % count);
+		return choose_case(pm, p, casel, rand()%count);
 	}
 
 	if (i == 0 && compute_b(pm, p, casel->qase->cond)) {
@@ -704,7 +708,7 @@ cmd* smallest_control_struct_cmdlist(proc *p, cmdlist *cmdl) {
 					if (smaller != NULL) {
 						return smallest_control_struct_cmdlist(p, smaller);
 					}
-					return res;
+					return cmdl->cmd;
 				}
 			}
 		}
@@ -908,12 +912,34 @@ void print_vars(prgm *pm) {
 	}
 }
 
+void check_reach(prgm *pm, spelist *spl) {
+	if (spl != NULL) {
+		spl->cond->count_reach += compute_b(pm, NULL, spl->cond);
+		check_reach(pm, spl->next);
+	}
+}
+
+void print_reaches(spelist *spl) {
+	if (spl != NULL) {
+		print_bexpr(spl->cond);
+		printf(" reached %d times\n", spl->cond->count_reach);
+		print_reaches(spl->next);
+	}
+}
+
 int myRun(prgm *pm) {
 	reset_program(pm);
-	for (int i = 0; i < 1000 && !one_step_overall(pm, pm->core, -1); i++) {
-		/* print_vars(pm);
-		printf("\n"); */
+	for (int i = 0; i < 100; i++) {
+		reset_program(pm);
+		for (int i = 0; i < 100 && !one_step_overall(pm, pm->core, -1); i++) {
+			check_reach(pm, pm->spe);	
+		}
 	}
+
+	print_reaches(pm->spe);
+
+
+
 	return 0;
 }
 
@@ -926,6 +952,7 @@ int main (int argc, char **argv)
 	if (!yyparse()) {
 		print_prgm(program);
 	}
+	srand(time(NULL));
 	printf("\n\n******Trying to run the program******\n\n");
 	int res = myRun(program);
 	printf("%d\n", res);
