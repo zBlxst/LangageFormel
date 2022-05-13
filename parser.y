@@ -683,7 +683,7 @@ qase* choose_case(prgm *pm, proc *p, caselist *casel, int i) {
 			return NULL;
 		}
 		int r = rand() % count;
-		printf("Choosing the %d'th possible case (over %d possibilities)\n", r, count);
+		//printf("Choosing the %d'th possible case (over %d possibilities)\n", r, count);
 		return choose_case(pm, p, casel, rand() % count);
 	}
 
@@ -799,7 +799,6 @@ int set_next_caselist(proc *p, caselist *casel, int found) {
 
 
 int execute(prgm *pm, proc *p, cmd *command) {
-	print_cmd(command, 0, 1);
 	if (command != NULL) {
 		switch (command->type) {
 			case ASSIGN:
@@ -911,9 +910,9 @@ void print_vars(prgm *pm) {
 
 int myRun(prgm *pm) {
 	reset_program(pm);
-	for (int i = 0; i < 20 && !one_step_overall(pm, pm->core, -1); i++) {
-		print_vars(pm);
-		printf("\n");
+	for (int i = 0; i < 1000 && !one_step_overall(pm, pm->core, -1); i++) {
+		/* print_vars(pm);
+		printf("\n"); */
 	}
 	return 0;
 }
