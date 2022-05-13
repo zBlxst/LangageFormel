@@ -87,6 +87,7 @@ typedef struct proc // un processus est défini par son nom, ses variables local
 	char *name;
 	struct varlist *loc;
 	struct cmdlist *core;
+	int alive;
 } proc;
 
 typedef struct proclist
@@ -208,6 +209,7 @@ proc* make_proc (char *name, varlist *vl, cmdlist *cl)
 	p->name = name;
 	p->loc = vl;
 	p->core = cl;
+	p->alive = 1;
 	return p;
 }
 
@@ -504,7 +506,417 @@ void print_prgm (prgm *p)
 /****************************************************************************/
 /* functions to run the program and try to solve reaches */
 
+cmd* find_command_to_do_cmdlist(proc *p, cmdlist *cmdl);
+cmd* find_command_to_do_caselist(proc *p, caselist* casel);
+int change_var(varlist *varl, char *name, int value);
+int compute_a(prgm *pm, proc *p, aexpr *expr);
+int compute_b(prgm *pm, proc *p, bexpr *expr);
+int compute_compare(prgm *pm, proc *p, compare *cmp);
+qase* choose_case(prgm *pm, proc *p, caselist *casel, int i);
+cmd* smallest_control_struct_cmdlist(proc *p, cmdlist *cmdl);
+cmdlist* smallest_control_struct_caselist(proc *p, caselist *casel);
+int exit_control_struct(proc *p, cmdlist *cmdl);
+int set_next_cmdlist(proc *p, cmdlist *cmdl, int found);
+int set_next_caselist(proc *p, caselist *casel, int found);	
+int execute(prgm *pm, proc *p, cmd *command);
+int one_step_in_proc(prgm *pm, proc *p);
 
+void print_vars(prgm *pm);
+
+cmd* find_command_to_do_cmdlist(proc *p, cmdlist *cmdl) {
+	if (cmdl != NULL && cmdl->cmd != NULL) {
+		if (cmdl->cmd->toDoNext) {
+			return cmdl->cmd;
+		}
+		switch (cmdl->cmd->type) {
+			case DO:
+				{
+					cmd *res = find_command_to_do_caselist(p, cmdl->cmd->cases);
+					if (res != NULL) {
+						return res;
+					}
+					break;
+				}
+			case IF:
+				{
+					cmd *res = find_command_to_do_caselist(p, cmdl->cmd->cases);
+					if (res != NULL) {
+						return res;
+					}
+					break;
+				}
+		}
+		return find_command_to_do_cmdlist(p, cmdl->next);
+	}
+	return NULL;
+}
+
+cmd* find_command_to_do_caselist(proc *p, caselist* casel) {
+	if (casel != NULL && casel->qase != NULL && casel->qase->effet) {
+		cmd *res = find_command_to_do_cmdlist(p, casel->qase->effet);
+		if (res != NULL) {
+			return res;
+		} else {
+			return find_command_to_do_caselist(p, casel->next);
+		}
+	}
+	return NULL;
+}
+
+int change_var(varlist *varl, char *name, int value) {
+	if (varl != NULL && varl->v != NULL) {
+		if (!strcmp(varl->v->name, name)) {
+			varl->v->value = value;
+			return 0;
+		} 
+		return change_var(varl->next, name, value);
+	}
+	return 1;
+}
+
+int get_value(varlist *varl, char *name, int *found) {
+	if (varl != NULL && varl->v != NULL) {
+		if (!strcmp(varl->v->name, name)) {
+			*found = 1;
+			return varl->v->value;
+		} 
+		return get_value(varl->next, name, found);
+	}
+	return -1;
+}
+
+int compute_a(prgm *pm, proc *p, aexpr *expr) {
+	switch (expr->type) {
+		case IDENT:
+		{
+			int *pfound, found;
+			pfound = &found;
+			found = 0;
+			int res = get_value(p->loc, expr->name, pfound);
+			if (found) {
+				return res;
+			}
+			res = get_value(pm->glob, expr->name, pfound);
+			if (found) {
+				return res;
+			}
+			fprintf(stderr, "Couldn't find variable %s\n", expr->name);
+			exit(1);
+		}
+		case INT:
+			return expr->val;
+		case PLUS:
+			return compute_a(pm, p, expr->left) + compute_a(pm, p, expr->right);
+		case MINUS:
+			return compute_a(pm, p, expr->left) - compute_a(pm, p, expr->right);
+		case TIME:
+			return compute_a(pm, p, expr->left) * compute_a(pm, p, expr->right);
+		case DIV:
+			{
+				int denom = compute_a(pm, p, expr->right);
+				if (denom != 0) {
+					return compute_a(pm, p, expr->left) / denom;
+				} else {
+					fprintf(stderr, "Cannot divide by zero !\n");
+					exit(1);
+				}
+			}
+	}
+}
+
+int compute_b(prgm *pm, proc *p, bexpr *expr) {
+	switch (expr->type) {
+		case 0:
+			return compute_a(pm, p, expr->val);
+		case NOT:
+			return !compute_b(pm, p, expr->left);
+		case AND:
+		{
+			int res;
+			if (compute_b(pm, p, expr->left)) {
+				return compute_b(pm, p, expr->right);
+			}
+			return 0;
+		}
+		case OR:
+		{
+			int res;
+			if (!compute_b(pm, p, expr->left)) {
+				return compute_b(pm, p, expr->right);
+			}
+			return 1;
+		}
+		case COMPARE:
+			return compute_compare(pm, p, expr->cmp);
+	}
+}
+
+int compute_compare(prgm *pm, proc *p, compare *cmp) {
+	switch (cmp->type) {
+		case LE:
+			return compute_a(pm, p, cmp->left) <= compute_a(pm, p, cmp->right);
+		case LT:
+			return compute_a(pm, p, cmp->left) < compute_a(pm, p, cmp->right);
+		case GE:
+			return compute_a(pm, p, cmp->left) >= compute_a(pm, p, cmp->right);
+		case GT:
+			return compute_a(pm, p, cmp->left) > compute_a(pm, p, cmp->right);
+		case EQ:
+			return compute_a(pm, p, cmp->left) == compute_a(pm, p, cmp->right);
+	}
+}
+
+qase* choose_case(prgm *pm, proc *p, caselist *casel, int i) {
+	if (i == -1) {
+		int count = 0;
+		for (caselist *qasl = casel; qasl != NULL; qasl = qasl->next) {
+			if (qasl->qase->cond != NULL) {
+				count += compute_b(pm, p, qasl->qase->cond);
+			}
+		}
+		if (count == 0) {
+			for (caselist *qasl = casel; qasl != NULL; qasl = qasl->next) {
+				if (qasl->qase->cond == NULL) {
+					return qasl->qase;
+				}
+			}
+			return NULL;
+		}
+		int r = rand() % count;
+		printf("Choosing the %d'th possible case (over %d possibilities)\n", r, count);
+		return choose_case(pm, p, casel, rand() % count);
+	}
+
+	if (i == 0 && compute_b(pm, p, casel->qase->cond)) {
+		return casel->qase;
+	}
+	return (compute_b(pm, p, casel->qase->cond) ? choose_case(pm, p, casel->next, i-1) : choose_case(pm, p, casel->next, i));
+}
+
+cmd* smallest_control_struct_cmdlist(proc *p, cmdlist *cmdl) {
+	if (cmdl != NULL) {
+		switch (cmdl->cmd->type) {
+			case DO:
+			{
+				cmd *res = find_command_to_do_caselist(p, cmdl->cmd->cases);
+				if (res != NULL) {
+					cmdlist *smaller = smallest_control_struct_caselist(p, cmdl->cmd->cases);
+					if (smaller != NULL) {
+						return smallest_control_struct_cmdlist(p, smaller);
+					}
+					return res;
+				}
+			}
+		}
+		return smallest_control_struct_cmdlist(p, cmdl->next);	
+	}
+	return NULL;
+}
+
+cmdlist* smallest_control_struct_caselist(proc *p, caselist *casel) {
+	if (casel != NULL) {
+		cmd *res = smallest_control_struct_cmdlist(p, casel->qase->effet);
+		if (res != NULL) {
+			return casel->qase->effet;
+		}
+		return smallest_control_struct_caselist(p, casel->next);
+	}
+	return NULL;
+}
+
+
+int exit_control_struct(proc *p, cmdlist *cmdl) {
+	cmd *smallest = smallest_control_struct_cmdlist(p, cmdl);
+	cmd *broken = find_command_to_do_cmdlist(p, cmdl);
+	broken->toDoNext = 0;
+	if (smallest != NULL) {
+		smallest->toDoNext = 1;
+		return 0;
+	}
+	return 1;
+}
+
+int set_next_cmdlist(proc *p, cmdlist *cmdl, int found) {
+	if (cmdl != NULL) {
+		if (found) {
+			cmdl->cmd->toDoNext = 1;
+			return 0;
+		} 
+		if (cmdl->cmd->toDoNext) {
+			cmdl->cmd->toDoNext = 0;
+			return set_next_cmdlist(p, cmdl->next, 1);
+		}
+		switch (cmdl->cmd->type) {
+			case DO:
+				{
+					int res = set_next_caselist(p, cmdl->cmd->cases, found); 
+					switch (res) {
+						case 0:
+							return 0;
+						case -1:
+							cmdl->cmd->toDoNext = 1;
+							return 0;
+						case -2:
+							return set_next_cmdlist(p, cmdl->next, found);
+					}
+				}
+			case IF:
+				switch (set_next_caselist(p, cmdl->cmd->cases, found)) {
+					case 0:
+						return 0;
+					case -1:
+						return set_next_cmdlist(p, cmdl->next, 1);
+					case -2:
+						return set_next_cmdlist(p, cmdl->next, 0);
+
+				}
+
+			default:
+				return set_next_cmdlist(p, cmdl->next, found);
+
+		}
+	}
+	return -2 + found; // -1 if found else -2  
+}
+
+int set_next_caselist(proc *p, caselist *casel, int found) {
+	if (casel != NULL) {
+		if (found) {
+			return set_next_cmdlist(p, casel->qase->effet, 1);
+		}
+		switch (set_next_cmdlist(p, casel->qase->effet, found)) {
+			case 0:
+				return 0;
+			case -1:
+				return -1;
+			case -2:
+				return set_next_caselist(p, casel->next, found);
+		}
+	}
+	return -2 + found; // -1 if found else -2  
+}
+
+
+
+int execute(prgm *pm, proc *p, cmd *command) {
+	print_cmd(command, 0, 1);
+	if (command != NULL) {
+		switch (command->type) {
+			case ASSIGN:
+				if (!change_var(p->loc, command->name, compute_a(pm, p, command->val))) {
+					return 0;
+				}
+				if (!change_var(pm->glob, command->name, compute_a(pm, p, command->val))) {
+					return 0;
+				}
+				fprintf(stderr, "Couldn't find variable %s\n", command->name);
+				exit(1);
+			case SKIP:
+				return 0;
+			case BREAK:
+				if (!exit_control_struct(p, p->core)) {
+					return 0;
+				}
+				fprintf(stderr, "No do/if to break\n");
+				exit(1);
+			case DO:
+				{
+					qase *qas = choose_case(pm, p, command->cases, -1);
+					if (qas == NULL) {
+						return 0;
+					}
+					command->toDoNext = 0;
+					qas->effet->cmd->toDoNext = 1;
+					return execute(pm, p, qas->effet->cmd);
+				}
+			case IF:
+				{
+					qase *qas = choose_case(pm, p, command->cases, -1);
+					if (qas == NULL) {
+						return 0;
+					}
+					command->toDoNext = 0;
+					qas->effet->cmd->toDoNext = 1;
+					return execute(pm, p, qas->effet->cmd);
+				}
+		}
+	}
+}
+
+int one_step_in_proc(prgm *pm, proc *p) {
+	if (p != NULL && p->core != NULL) {
+		cmd *toDo = find_command_to_do_cmdlist(p, p->core);
+		if (toDo == NULL) {
+			return 1;
+		}
+		if (execute(pm, p, toDo)) {
+			fprintf(stderr, "Something went wrong : execution aborted\n");
+			exit(1);
+		}
+		int set = set_next_cmdlist(p, p->core, 0);
+		if (set) {
+			p->alive = 0;
+			fprintf(stderr, "Something went wrong : execution aborted (over ?)\n");
+			/* exit(0); */
+		}
+		return 0;
+	}
+}
+
+int one_step_overall(prgm *pm, proclist *pl, int i) {
+	if (i == -1) {
+		int count = 0;
+		for (proclist *pl = pm->core; pl != NULL; pl = pl->next) {
+			count += pl->p->alive;
+		}
+		if (count == 0) {
+			return -1;
+		}
+		return one_step_overall(pm, pl, rand() % count);
+	}
+	if (i == 0 && pl->p->alive) {
+		return one_step_in_proc(pm, pl->p);
+	}
+	return (pl->p->alive ? one_step_overall(pm, pl->next, i-1) : one_step_overall(pm, pl->next, i));
+}
+
+int reset_program(prgm *pm) {
+	for (proclist *pl = pm->core; pl != NULL; pl = pl->next) {
+		proc *p = pl->p;
+		p->alive = 1;
+		for (varlist *loc = p->loc; loc != NULL; loc = loc->next) {
+			loc->v->value = 0;
+		}
+		cmd *oldToDo = find_command_to_do_cmdlist(p, p->core);
+		if (oldToDo != NULL) {
+			oldToDo->toDoNext = 0;
+		}
+		set_next_cmdlist(p, p->core, 1);
+	}
+	for (varlist *glob = pm->glob; glob != NULL; glob = glob->next) {
+		glob->v->value = 0;
+	}
+}
+
+void print_vars(prgm *pm) {
+	for (varlist *glob = pm->glob; glob != NULL; glob = glob->next) {
+		printf("%s at %p -> %d\n", glob->v->name, glob->v, glob->v->value);
+	}
+	for (proclist *pl = pm->core; pl != NULL; pl = pl->next) {
+		for (varlist *loc = pl->p->loc; loc != NULL; loc = loc->next) {
+			printf("proc %s -> %s at %p -> %d\n", pl->p->name, loc->v->name, loc->v, loc->v->value);
+		}
+	}
+}
+
+int myRun(prgm *pm) {
+	reset_program(pm);
+	for (int i = 0; i < 20 && !one_step_overall(pm, pm->core, -1); i++) {
+		print_vars(pm);
+		printf("\n");
+	}
+	return 0;
+}
 
 /****************************************************************************/
 
@@ -512,5 +924,13 @@ int main (int argc, char **argv)
 {
 	if (argc <= 1) { yyerror("no file specified"); exit(1); }
 	yyin = fopen(argv[1],"r");
-	if (!yyparse()) print_prgm(program);
+	if (!yyparse()) {
+		print_prgm(program);
+	}
+	printf("\n\n******Trying to run the program******\n\n");
+	int res = myRun(program);
+	printf("%d\n", res);
+
+	return 0;
+
 }
