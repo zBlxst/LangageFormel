@@ -1,0 +1,51 @@
+\documentclass[10pt, a4paper]{article}
+
+% Adjusting margins to personal my need
+\addtolength{\oddsidemargin}{-.5in}
+\addtolength{\evensidemargin}{-.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\topmargin}{-1in}
+\addtolength{\textheight}{1in}
+
+% Graphics
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{graphicx}
+\graphicspath{{figures/}}
+
+% Math
+\usepackage{amssymb}
+\usepackage{amsmath} % Required for some math elements 
+
+% Other
+\usepackage{algorithmic}
+\usepackage{array}
+\usepackage{lipsum}
+\usepackage{hyperref}
+\usepackage[nottoc, notlof, notlot]{tocbibind}
+\usepackage{tikz}
+
+\title{Rapport : Projet Lexer-Parser}
+\author{Gaspard REGHEM / Thomas VARIN}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Niveau 1}
+
+Dans un premier temps, nous avons envisagé de ne faire que le niveau 1 donc il existe un \textit{pretty print} du code en plus du niveau 2.
+
+\subsection{Lexer}
+
+Le lexer se trouve dans le fichier \textit{lexer.l} et il est largement inspiré du lexer du TP sur bison. Le lexer reconnait toutes les structures de code possibles d'après le sujet (do/od, if/fi, séquence), la déclaration de processus et de variables, les 4 opérations arithmétiques usuelles et les 5 comparaisons. Les commentaires sont ignorés par le lexer et il distingue deux cas : les commentaires commençant par \verb"//" finissant en fin de ligne et ceux commençant par \verb"/*" finissant par \verb"*/". Les variables doivent posséder un nom commençant par une minuscule ou un tiret du bas pour être reconnu. On a ajouté l'option \verb"yylineno" pour obtenir la localisation des erreurs lors des échecs.
+
+\subsection{Parser}
+
+Le parser se situe dans le fichier \textit{parser.y} et il est lui-aussi inspiré du parser du TP sur bison. On commence par déclarer toutes les structures qui sont principalement des arbres ou des listes simplement chainées. Ensuite, on peut trouver toutes les fonctions permettant de créer ces structures, en plus, de certaines fonctions utiles. Puis, il y a la grammaire qui permet de construire l'AST. Cet AST est ensuite lu pour effectuer le \textit{pretty print} qui est défini juste en dessous par un ensemble de fonctions qui s'appellent entre elles. 
+
+\section{Niveau 2}
+
+
+\end{document}

@@ -32,7 +32,7 @@ DIG	[0-9]
 
 ":="	            { return ASSIGN; }
 
-"=="	            { return EQ; }
+
 "||"	            { return OR; }
 "&&"	            { return AND; }
 "!"	                { return NOT; }
@@ -42,6 +42,7 @@ DIG	[0-9]
 "-"	                { return MINUS; }
 "/"	                { return DIV; }
 
+"=="			{ return EQ; }
 "<"	                { return LT; }
 "<="	            { return LE; }
 ">"	                { return GT; }
